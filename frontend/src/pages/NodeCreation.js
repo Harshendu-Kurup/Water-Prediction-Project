@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import config from '../config';
 
 const NodeCreation = () => {
   const [formData, setFormData] = useState({
@@ -26,14 +27,13 @@ const NodeCreation = () => {
     try {
       setFetchingData(true);
       const response = await axios.get(
-        `http://127.0.0.1:8000/tank-parameters?page=${page}&size=${size}&sort_by=id&sort_order=asc`,
+        `${config.TANK_PARAMETERS_URL}?page=${page}&size=${size}&sort_by=id&sort_order=asc`,
         {
           headers: {
             'accept': 'application/json'
           }
         }
       );
-      
       setExistingNodes(response.data || []);
       setPagination({
         total: response.data.total || 0,
@@ -67,7 +67,7 @@ const NodeCreation = () => {
 
     try {
       const response = await axios.post(
-        'http://127.0.0.1:8000/tank-parameters',
+        config.TANK_PARAMETERS_URL,
         formData,
         {
           headers: {
