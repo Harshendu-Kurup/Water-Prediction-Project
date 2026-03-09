@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 
+import config from '../config';
+
 const Home = () => {
   const [waterLevel, setWaterLevel] = useState(0);
   const [temperature, setTemperature] = useState(0);
@@ -78,8 +80,7 @@ const Home = () => {
       const actualTankId = selectedNode ? getActualTankId(selectedNode) : null;
       const timeParams = getTimeRangeParams();
 
-      let url = "http://127.0.0.1:8000/sensor-data";
-
+      let url = config.SENSOR_DATA_URL;
 
       const response = await axios.get(url, {
         headers: {
@@ -180,7 +181,7 @@ const Home = () => {
   const fetchNodes = async () => {
     try {
       const response = await axios.get(
-        'http://127.0.0.1:8000/tank-parameters',
+        config.TANK_PARAMETERS_URL,
         {
           headers: {
             'accept': 'application/json'
