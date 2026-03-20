@@ -10,6 +10,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+from ml_model.predict import predict
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -56,14 +58,13 @@ def create_tables():
     # Sensor data table
     cur.execute("""
     CREATE TABLE IF NOT EXISTS sensor_data (
-        id SERIAL PRIMARY KEY,
-        node_id VARCHAR(50),
-        field1 FLOAT,
-        field2 FLOAT,
-        created_at TIMESTAMP
-    )
-    """)
-
+    id SERIAL PRIMARY KEY,
+    node_id VARCHAR(50),
+    field1 FLOAT,
+    field2 FLOAT,
+    created_at TIMESTAMP
+   )
+     """)
     # Tank parameters table
     cur.execute("""
     CREATE TABLE IF NOT EXISTS tank_sensorparameters (
@@ -75,6 +76,19 @@ def create_tables():
         lat FLOAT,
         long FLOAT
     )
+    """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS predictions (
+    id SERIAL PRIMARY KEY,
+    input_data JSON,
+    prediction TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    # Force fix column type (in case already exists wrong)
+    cur.execute("""
+    ALTER TABLE predictions
+    ALTER COLUMN prediction TYPE TEXT USING prediction::TEXT;
     """)
 
     conn.commit()
@@ -102,17 +116,25 @@ last_created_at = None
 # ==============================
 def generate_test_data():
 
-    base_values = {
-        "distance": 94.0,
-        "temperature": 20.8
-    }
+    import random
+
+    # Choose category randomly
+    category = random.choice(["low", "medium", "high"])
+
+    if category == "low":
+        distance = random.uniform(5, 20)      # → overflow
+    elif category == "medium":
+        distance = random.uniform(30, 60)    # → empty
+    else:
+        distance = random.uniform(80, 110)   # → filling
+
+    temperature = random.uniform(18, 30)
 
     return {
-        "distance": round(base_values["distance"] + random.uniform(-10, 10), 1),
-        "temperature": round(base_values["temperature"] + random.uniform(-2, 2), 1),
+        "distance": round(distance, 1),
+        "temperature": round(temperature, 1),
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
-
 
 # ==============================
 # SENSOR DATA COLLECTOR
@@ -257,37 +279,6 @@ def get_tank_parameters():
 # GET SENSOR DATA API
 # ==============================
 @app.get("/sensor-data")
-def get_sensor_data():
-
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-    SELECT id,node_id,field1,field2,created_at
-    FROM sensor_data
-    ORDER BY id DESC
-    LIMIT 100
-    """)
-
-    rows = cur.fetchall()
-
-    cur.close()
-    conn.close()
-
-    result = []
-
-    for row in rows:
-        result.append({
-            "id": row[0],
-            "node_id": row[1],
-            "distance": row[2],
-            "temperature": row[3],
-            "created_at": row[4]
-        })
-
-    return result
-
-@app.get("/sensor-data")
 def get_sensor_data(node_id: str = None):
 
     conn = get_connection()
@@ -338,6 +329,91 @@ def start_background_tasks():
     thread.start()
 
 
+@app.post("/predict")
+def predict_api():
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # Get last 5 sensor values
+    cur.execute("""
+    SELECT field1, field2
+    FROM sensor_data
+    ORDER BY created_at DESC
+    LIMIT 5
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    # If no data
+    if len(rows) == 0:
+        return {"error": "No sensor data available"}
+
+    # Repeat rows until we have 30
+    while len(rows) < 30:
+        rows = rows + rows
+
+    rows = rows[:30]
+    rows = rows[::-1]
+
+    # Convert to features
+    features = []
+    for r in rows:
+        features.append(float(r[0]))
+        features.append(float(r[1]))
+
+    # Predict
+    result = predict(features)
+     # Save prediction
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+     INSERT INTO predictions (input_data, prediction)
+    VALUES (%s, %s)
+    """, (json.dumps(features), result))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+     
+
+    # Return response
+    return {
+        "prediction": result,
+        "used_points": len(rows)
+    }
+@app.get("/prediction-history")
+def get_predictions():
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT id, prediction, created_at
+    FROM predictions
+    ORDER BY created_at DESC
+    LIMIT 10
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    result = []
+    for row in rows:
+        result.append({
+            "id": row[0],
+            "prediction": row[1],
+            "created_at": row[2]
+        })
+
+    return result
 # ==============================
 # MAIN
 # ==============================
