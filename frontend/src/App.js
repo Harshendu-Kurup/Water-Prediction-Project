@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import Prediction from "./pages/Prediction";
-import History from "./pages/history";
+import history from "./pages/history";
+<Route path="/history" element={<history />} />
+
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';

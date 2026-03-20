@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-function History() {
+function history() {
   const [data, setData] = useState([]);
 
   useEffect(() => {
@@ -36,4 +36,4 @@ function History() {
   );
 }
 
-export default History;
+export default history;
