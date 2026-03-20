@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-from backend.ml_model.predict import predict
+from ml_model.predict import predict
 import json
 
 # Load environment variables from .env file
